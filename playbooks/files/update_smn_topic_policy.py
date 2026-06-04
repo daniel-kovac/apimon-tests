@@ -5,7 +5,6 @@ import sys
 
 from otcextensions import sdk
 
-openstack.enable_logging(True)
 conn = openstack.connect()
 
 sdk.register_otc_extensions(conn)
@@ -33,4 +32,4 @@ attrs = {
     "value": policy
 }
 
-conn.smn.topic_attributes(topic_urn, name="access_policy", **attrs)
+conn.smn.update_topic_attribute(topic_urn, name="access_policy", **attrs)
