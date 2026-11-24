@@ -5,69 +5,95 @@
   hosts: localhost
   vars:
     prefix: scenario25-
+    topic_subscription: ''
   tasks:
     - set_fact:
         prefix: "{{ (prefix + ( lookup('env', 'TASK_EXECUTOR_JOB_ID') | default(99999999 | random | to_uuid | hash('md5'), true) ) ) }}"
 
     - set_fact:
         test_smn_topic: "{{ (prefix + 'topic') }}"
-    
-    - name: Create SMN Topic
-      script: "create_smn_topic.py {{ test_smn_topic }}"
-      args:
-        executable: python3
-      register: result_create_topic
 
-    - name: Get topic_urn
-      set_fact:
-        topic_urn: "{{ result_create_topic.stdout.strip() }}"
-
-      
     - block:
 
+      - name: Create SMN Topic
+        script: "create_smn_topic.py {{ test_smn_topic }}"
+        args:
+          executable: python3
+        register: result_create_topic
+
+      - name: Get topic_urn
+        set_fact:
+          topic_urn: "{{ result_create_topic.stdout.strip() }}"
+
+      - assert:
+          that:
+            - topic_urn is match('urn:smn:.*')
 
       - name: Create Subscription
-        script: "create_smn_subscription.py {{ topic_urn }}"
+        script: "create_smn_subscription.py {{ topic_urn }} {{ prefix }}@example.com"
         args:
           executable: python3
         register: result_create_subscription
-        
-      - set_fact:
+
+      - name: Get topic_subscription
+        set_fact:
           topic_subscription: "{{ result_create_subscription.stdout.strip() }}"
 
-      - debug:
+      - name: Show topic_subscription
+        debug:
           msg: "topic_subscription: {{ topic_subscription }}"
-      
+
       - name: Query Subscriptions
         script: "list_smn_subscriptions.py"
         args:
           executable: python3
         register: result_list_subscriptions
-        
+
+      - assert:
+          that:
+            - result_list_subscriptions.stdout_lines | length >= 1
+            - result_list_subscriptions.stdout_lines
+              | select('match', '^' + topic_subscription + '\\t')
+              | list | length == 1
+
       - name: Query Subscriptions of Specified Topic
-        script: "get_smn_subscription.py {{ topic_urn }}"
+        script: "list_topic_subscriptions.py {{ topic_urn }}"
         args:
           executable: python3
-        register: result_get_subscription
-        
-      
-      always:
-        
-        
-          - name: Delete SMN Subscription
-            script: "delete_smn_subscription.py {{ topic_subscription }}"
-            args:
-              executable: python3
-          
-            ignore_errors: true
+        register: result_list_topic_subscriptions
 
-          - name: Delete SMN Topic
-            script: "delete_smn_topic.py {{ topic_urn }}"
-            args:
-              executable: python3
-          
-            ignore_errors: true
-      
-      
-        
-     
+      - assert:
+          that:
+            - result_list_topic_subscriptions.stdout_lines
+              | select('match', '^' + topic_subscription + '\\temail\\t.*\\t0$')
+              | list | length == 1
+
+      always:
+
+        - name: Delete SMN Subscription
+          script: "delete_smn_subscription.py {{ topic_subscription }}"
+          args:
+            executable: python3
+          when: topic_subscription | length > 0
+          ignore_errors: true
+
+        - name: Verify subscription was removed
+          script: "list_topic_subscriptions.py {{ topic_urn }}"
+          args:
+            executable: python3
+          register: result_list_subscriptions_after_cleanup
+          when: topic_subscription | length > 0
+
+        - assert:
+            that:
+              - result_list_subscriptions_after_cleanup.stdout_lines
+                | select('match', '^' + topic_subscription + '\\t')
+                | list | length == 0
+          when: topic_subscription | length > 0
+
+        - name: Delete SMN Topic
+          script: "delete_smn_topic.py {{ topic_urn }}"
+          args:
+            executable: python3
+          when: topic_urn | default('') | length > 0
+          ignore_errors: true

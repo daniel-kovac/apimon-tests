@@ -12,10 +12,9 @@ sdk.register_otc_extensions(conn)
 topic_urn = sys.argv[1]
 
 attrs = {
-
-      "endpoint": "user@example.com",
-      "protocol": "email",
-      "remark": "Lorem"
+    'endpoint': sys.argv[2],
+    'protocol': 'email',
+    'remark': f'apimon {sys.argv[2]}'
 }
 
 result = conn.smn.create_subscription(topic_urn, **attrs)

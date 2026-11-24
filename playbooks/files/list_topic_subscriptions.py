@@ -11,4 +11,5 @@ sdk.register_otc_extensions(conn)
 
 topic_urn = sys.argv[1]
 
-conn.smn.subscriptions(topic_urn)
+for sub in conn.smn.subscriptions(topic_urn):
+    print(f"{sub.id}\t{sub.protocol}\t{sub.endpoint}\t{sub.status}")

@@ -8,4 +8,5 @@ conn = openstack.connect()
 
 sdk.register_otc_extensions(conn)
 
-conn.smn.subscriptions()
+for sub in conn.smn.subscriptions():
+    print(f"{sub.id}\t{sub.protocol}\t{sub.endpoint}\t{sub.status}")
